@@ -521,8 +521,6 @@ class Board():
 
             listPotentialNextStates = []
 
-            #print(str(self.board[mypiece[0]][mypiece[1]]))
-
             if (self.board[mypiece[0]][mypiece[1]].name == 'K'):
 
                 #print(" mypiece at  ",mypiece[0],mypiece[1])

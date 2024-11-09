@@ -8,6 +8,8 @@ Created on Thu Sep  8 11:22:03 2022
 import copy
 import math
 
+import time
+
 import chess
 import board
 import numpy as np
@@ -38,6 +40,7 @@ class Aichess():
 
     """
 
+
     def __init__(self, TA, myinit=True):
 
         if myinit:
@@ -53,6 +56,7 @@ class Aichess():
         self.depthMax = 8;
         self.checkMate = False
 
+
     def copyState(self, state):
         
         copyState = []
@@ -60,6 +64,7 @@ class Aichess():
             copyState.append(piece.copy())
         return copyState
         
+
     def isVisitedSituation(self, color, mystate):
         
         if (len(self.listVisitedSituations) > 0):
@@ -82,17 +87,20 @@ class Aichess():
 
         return self.myCurrentStateW
 
+
     def getListNextStatesW(self, myState):
         self.chess.boardSim.getListNextStatesW(myState)
         self.listNextStates = self.chess.boardSim.listNextStates.copy()
 
         return self.listNextStates
 
+
     def getListNextStatesB(self, myState):
         self.chess.boardSim.getListNextStatesB(myState)
         self.listNextStates = self.chess.boardSim.listNextStates.copy()
 
         return self.listNextStates
+
 
     def isSameState(self, a, b):
 
@@ -113,6 +121,7 @@ class Aichess():
         isSameState = isSameState1 and isSameState2
         return isSameState
 
+
     def isVisited(self, mystate):
 
         if (len(self.listVisitedStates) > 0):
@@ -130,11 +139,12 @@ class Aichess():
         else:
             return False
 
-    def isWatchedBk(self, currentState):
 
+    def isWatchedBk(self, currentState):
         self.newBoardSim(currentState)
 
-        print(currentState)
+        if not self.getPieceState(currentState, 12):
+            raise Exception('The black king is not in the board')
 
         bkPosition = self.getPieceState(currentState, 12)[0:2]
         wkState = self.getPieceState(currentState, 6)
@@ -155,7 +165,6 @@ class Aichess():
                     return True
         return False
         
-
 
     def isWatchedWk(self, currentState):
         self.newBoardSim(currentState)
@@ -181,7 +190,6 @@ class Aichess():
         return False
 
 
-
     def newBoardSim(self, listStates):
         # We create a  new boardSim
         TA = np.zeros((8, 8))
@@ -189,6 +197,7 @@ class Aichess():
             TA[state[0]][state[1]] = state[2]
 
         self.chess.newBoardSim(TA)
+
 
     def getPieceState(self, state, piece):
         pieceState = None
@@ -198,6 +207,7 @@ class Aichess():
                 break
         return pieceState
 
+
     def getCurrentState(self):
         listStates = []
         for i in self.chess.board.currentStateW:
@@ -205,6 +215,7 @@ class Aichess():
         for j in self.chess.board.currentStateB:
             listStates.append(j)
         return listStates
+
 
     def getNextPositions(self, state):
         # Given a state, we check the next possible states
@@ -220,6 +231,7 @@ class Aichess():
             nextPositions.append(i[0][0:2])
         return nextPositions
 
+
     def getWhiteState(self, currentState):
         whiteState = []
         wkState = self.getPieceState(currentState, 6)
@@ -229,6 +241,7 @@ class Aichess():
             whiteState.append(wrState)
         return whiteState
 
+
     def getBlackState(self, currentState):
         blackState = []
         bkState = self.getPieceState(currentState, 12)
@@ -237,6 +250,7 @@ class Aichess():
         if brState != None:
             blackState.append(brState)
         return blackState
+
 
     def getMovement(self, state, nextState):
         # Given a state and a successor state, return the postiion of the piece that has been moved in both states
@@ -252,6 +266,7 @@ class Aichess():
                     break
 
         return [pieceState, pieceNextState]
+
 
     def heuristica(self, currentState, color):
         #In this method, we calculate the heuristics for both the whites and black ones
@@ -331,195 +346,206 @@ class Aichess():
 
         return value
 
-    #### AUXILIARY FUNCTIONS ####
 
-    def isBlackInCheckMate(self, current_state):
+    def isKingEaten(self, moved_piece, successor, color):
+        
+        for s in successor:
+            if color and moved_piece[:2] == s[:2] and s[2] == 12:
+                return True # Black king eaten
+            if not color and moved_piece[:2] == s[:2] and s[2] == 6:
+                return True # White king eaten
+    
+
+    def isValidMovement(self, current_state, successor, color):
         '''
-        Checks if the black king is in check mate
+        Return if a successor is valid given a color and the current state.
 
-        params:
-            current_state: list representation of the current state of the board
+        Parameters:
+        -----------
+        current_state: List[List[int]]
+            Current state of the board
 
-        returns:
-            True if black king is in check mate, False otherwise
+        successor: List[List[int]]
+            Successor state
+        
+        Returns:
+        --------
+        True if successor is valid, False otherwise
         '''
 
-        # Creamos un tablero para simular todas las posibles posiciones del rey negro
-        self.newBoardSim(current_state)
+        # Get the positioin of the moved piece
+        _, moved_piece = self.getMovement(current_state, successor)
 
-        # Comprobamos si para cada posible movimiento, el rey se encuentra en jaque
-        for next_state in self.getListNextStatesB(self.chess.boardSim.currentStateB):
-            if not self.isWatchedBk(next_state): # Si en una posicion no esta en jaque el rey aun puede escapar
-                return False
+        # Check if the king is eaten
+        if self.isKingEaten(moved_piece, successor, color):
+            return False
+        
+        if moved_piece == None:
+            return False
         
         return True
+
+
+    def getSuccessors(self, current_state, color):
+        '''
+        Returns all valid successors for the white player given a current state.
+
+        Parameters:
+        -----------
+        current_state: List[List[int]]
+            Current state of the board
+        color: bool
+            True if white player, False if black player
+        
+        Returns:
+        --------
+        valid_successors: List[List[List[int]]]
+            List of all valid successors states for the white player.
+        '''
+
+        # Store valid successors
+        valid_successors = []
+
+        try:
+            # Get all possible successors depending on the color moved, even if they are not valid
+            successors = self.getListNextStatesW(self.getWhiteState(current_state)) if color else self.getListNextStatesB(self.getBlackState(current_state))
+        except Exception as e:
+            print(current_state)
+            print(self.chess.boardSim.currentState)
+            raise Exception(e)
+
+
+        # Check if each successor is a valid state
+        for s in successors:
+            # Join the current state of the black player to the white successor
+            s = s + self.getBlackState(current_state) if color else s + self.getWhiteState(current_state)
+                        
+            # If is valid, add to the list of valid successors
+            if self.isValidMovement(current_state, s, color):
+
+                for piece_i in s:
+                    for piece_j in s:
+                        if piece_i[:2] == piece_j[:2] and piece_i[2] != piece_j[2]:
+                            white_piece = piece_i if piece_i[2] <= 6 else piece_j
+                            black_piece = piece_i if piece_i[2] > 6 else piece_j
+                            if color:
+                                s.remove(black_piece)
+                            else:
+                                s.remove(white_piece)
+
+                valid_successors.append(s)
+
+        return valid_successors
     
-    def isWhiteInCheckMate(self, current_state):
+
+    def isCheckMate(self, current_state, color):
         '''
-        Checks if the white king is in check mate
-
-        params:
-            current_state: list representation of the current state of the board
-
-        returns:
-            True if black king is in check mate, False otherwise
+        Check if a player is in checkmate looking if his king is whatched for each of his possible moves.
         '''
 
-        # Creamos un tablero para simular todas las posibles posiciones del rey blanco
-        self.newBoardSim(current_state)
+        successors = self.getSuccessors(current_state, color=True) if color else self.getSuccessors(current_state, color=False)
 
-        # Comprobamos si para cada posible movimiento, el rey se encuentra en jaque
-        for next_state in self.getListNextStatesW(self.chess.boardSim.currentStateW):
-            if not self.isWatchedBk(next_state): # Si en una posicion no esta en jaque el rey aun puede escapar
+        for s in successors:
+            is_watched = self.isWatchedWk(current_state) if color else self.isWatchedBk(current_state)
+            if not is_watched:
                 return False
-        
-        return True
+
+
+    def minimaxWhite(self, current_state, depth):
+        best_successor, _ = self.maxValue(current_state, depth) 
+        return best_successor
     
-    ###############
-    ### MINIMAX ###
-    ###############
 
-    # WHITES
-    def minValueWhite(self, current_state, current_depth):
+    def minimaxBlack(self, current_state, depth):
+        best_successor, _ = self.minValue(current_state, depth)
+        return best_successor
 
-        # Check if the current state is terminal or the depth has reached max
-        if self.isWhiteInCheckMate(current_state) or current_depth == self.depthMax:
-            return self.heuristica(current_state, True)  # Returns the utility
+
+    def maxValue(self, current_state, depth):
+        '''
+        '''
+
+        # Check if the white player is in checkmate
+        if self.isCheckMate(current_state, color=True):
+            return current_state, float('-inf')
         
-        # Iniciamos búsqueda
-        best_successor = None
-        utility = float('inf')
-
-        # Sets a new simulation board
-        self.newBoardSim(current_state)
-
-        # Loop to search black pieces next states
-        for next_state in self.getListNextStatesB(self.chess.boardSim.currentState):
-
-            # Recursive call to perform the search
-            _, next_state_utility = self.maxValueWhite(next_state, current_depth + 1)
-
-
-            if next_state_utility < utility:
-                utility = next_state_utility
-                best_successor = next_state
-
-        return best_successor, utility
-
-
-    def maxValueWhite(self, current_state, current_depth):
-
-
-        # Comprovamos si las negras pueden dar con check mate o hemos llegado al limite de profundidad
-        if self.isBlackInCheckMate(current_state) or current_depth == self.depthMax:
-            return self.heuristica(current_state, True)
+        # If not checkmate, check if the maximum depth has been reached
+        if depth == 0:
+            return current_state, self.heuristica(current_state, True)
         
-        # Iniciamos búsqueda
+        # If not terminal state, search for the best successor
         best_successor = None
         utility = float('-inf')
+        successors = self.getSuccessors(current_state, color=True)
 
-        #self.chess.boardSim.print_board()
+        for s in successors:
+            self.newBoardSim(s)
+            _, u = self.minValue(s, depth - 1)
 
-        for next_state in self.getListNextStatesW(self.chess.boardSim.currentStateW):
-
-            #print(next_state)
-            
-            _, next_state_utility = self.minValueWhite(next_state, current_depth + 1)
-            
-            if next_state_utility > utility:
-                utility = next_state_utility
-                best_successor = next_state
+            if u > utility:
+                utility = u
+                best_successor = s
 
         return best_successor, utility
 
 
-    # BLACKS
-    def minValueBlack(self, current_state, current_depth):
-
-
-
-        # Comprovamos si las blancas pueden dar con check mate o hemos llegado al limite de profundidad
-        if self.isBlackInCheckMate(current_state) or current_depth == self.depthMax:
-            return self.heuristica(current_state, False)
+    def minValue(self, current_state, depth):
+        '''
+        '''
         
-        # Iniciamos búsqueda
+        # Check if the white player is in checkmate
+        if self.isCheckMate(current_state, color=False):
+            return current_state, float('inf')
+        
+        # If not checkmate, check if the maximum depth has been reached
+        if depth == 0:
+            return current_state, self.heuristica(current_state, False)
+        
+        # If not terminal state, search for the best successor
         best_successor = None
         utility = float('inf')
+        successors = self.getSuccessors(current_state, color=False)
+        for s in successors:
+            self.newBoardSim(s)
+            _, u = self.maxValue(s, depth - 1)
 
-        self.newBoardSim(current_state)
-        #self.chess.boardSim.print_board()
-
-        for next_state in self.getListNextStatesW(current_state):
-
-            _, next_state_utility = self.maxValueBlack(next_state, current_depth + 1)
-
-            if next_state_utility < utility:
-                utility = next_state_utility
-                best_successor = next_state
-
-        return best_successor, utility
-
-
-    def maxValueBlack(self, current_state, current_depth):
-
-        
-
-        # Comprovamos si las negras pueden dar con check mate o hemos llegado al limite de profundidad
-        if self.isWhiteInCheckMate(current_state) or current_depth == self.depthMax:
-            return self.heuristica(current_state, True)
-        
-        # Iniciamos búsqueda
-        best_successor = None
-        utility = float('-inf')
-
-        self.newBoardSim(current_state)
-        #self.chess.boardSim.print_board()
-
-        for next_state in self.getListNextStatesB(current_state):
-            
-            _, next_state_utility = self.minValue(next_state, current_depth + 1)
-            
-            if next_state_utility > utility:
-                utility = next_state_utility
-                best_successor = next_state
+            if u < utility:
+                utility = u
+                best_successor = s
 
         return best_successor, utility
     
-
+    
     def minimaxGame(self, depthWhite, depthBlack):
         
         current_state = self.getCurrentState()
 
-        self.newBoardSim(current_state)
-
         while True:
 
-            # Next white move
-            white_next_state, _ = self.maxValueWhite(current_state, depthWhite)
+            # White's next move
+            white_best_successor = self.maxValue(current_state, depthWhite)
+            movement = self.getMovement(current_state, white_best_successor)
 
-            break
-
-            # Movemos al nuevo estado de las blancas
-            movement = self.getMovement(current_state, white_next_state)
-            self.chess.move(movement[0], movement[1])
+            self.chess.board.print_board()
 
             # Asignamos el movimeinto del blanco como nuevo estado actual
-            currentState = white_next_state
+            current_state = white_best_successor
 
-            if self.isBlackInCheckMate(current_state):
+            # Check if the white player has won
+            if self.isCheckMate(current_state, color=False):
                 return True
             
             # Ejecutamos minimax para las negras
-            black_next_state = self.minimaxBlack(currentState, depthBlack)
-
-            # Movemos al nuevo estado de las negras
-            movement = self.getMovement(currentState, black_next_state)
+            black_best_successor = self.minValue(current_state, depthBlack)
+            movement = self.getMovement(current_state, black_best_successor)
             self.chess.move(movement[0], movement[1])
 
-            # Asignamos el movimiento de las negrsa como nuevo estado actual
-            currentState = black_next_state
+            self.chess.board.print_board()
 
-            if self.isWhiteInCheckMate(currentState):
+            # Asignamos el movimiento de las negrsa como nuevo estado actual
+            current_state = black_best_successor
+
+            if self.isCheckMate(current_state, color=True):
                 return False
 
 
@@ -532,7 +558,6 @@ class Aichess():
         
         currentState = self.getCurrentState()
         # Your code here       
-        
         
 
     def mitjana(self, values):
@@ -601,29 +626,29 @@ if __name__ == "__main__":
     aichess.chess.boardSim.print_board()
 
   # Run exercise 1
-    #aichess.minimaxGame(4,4)
+    aichess.minimaxGame(4, 4)
   # Add code to save results and continue with other exercises
-    algorithms = ['MiniMax', 'Alpha-Beta Prunning', 'ExpectMiniMax']
+    #algorithms = ['MiniMax', 'Alpha-Beta Prunning', 'ExpectMiniMax']
 
-    print('Que algoritmo quieres probar')
-    for i, a in enumerate(algorithms):
-        print(f'\t{i + 1}. {a}')
+    #print('Que algoritmo quieres probar')
+    #for i, a in enumerate(algorithms):
+        #print(f'\t{i + 1}. {a}')
 
-    option = -1
+    #option = -1
 
-    while option < 1 or option > len(algorithms):
-        option = int(input('> '))
+    #while option < 1 or option > len(algorithms):
+        #option = int(input('> '))
 
-    print("printing board")
-    aichess.chess.boardSim.print_board()
+    #print("printing board")
+    #aichess.chess.boardSim.print_board()
 
-    if option == 1:
-        ganador = aichess.minimaxGame(4,4)
+    #if option == 1:
+        #ganador = aichess.minimaxGame(4,4)
 
-        if ganador:
-            print(f"Ha ganado blanco")
-        else:
-            print(f"Ha ganado negro")
+        #if ganador:
+            #print(f"Ha ganado blanco")
+        #else:
+            #print(f"Ha ganado negro")
 
     #elif option == 2:
         #ganador = aichess.alphaBetaPoda(4,4)
